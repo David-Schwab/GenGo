@@ -246,8 +246,9 @@ func assert1b(x Show) {
     y := x.(pair[boolean, boolean])
     fmt.Printf("\n%s", y.show())
 }
-Hier akzeptiert assert1b ein Argument x, das das Show Interface implementiert. Es wird versucht, x in den Typ pair[boolean, boolean] zu konvertieren. Dies funktioniert nur, wenn x tatsächlich eine Instanz von pair[boolean, boolean] ist.
 ```
+
+Hier akzeptiert assert1b ein Argument x, das das Show Interface implementiert. Es wird versucht, x in den Typ pair[boolean, boolean] zu konvertieren. Dies funktioniert nur, wenn x tatsächlich eine Instanz von pair[boolean, boolean] ist.
 
 ## Beispiel für die Verwendung dieser Funktion :
 
@@ -261,8 +262,6 @@ func testAssert() {
     // assert1b(boolean{false}) würde bei run-time failen, weil x.pair 2 elemente erwartet
 }
 ```
-
-
 
 ## Einschränkungen und Fehler bei Type Assertions
 
@@ -915,13 +914,13 @@ Generics verringern die Notwendigkeit, redundanten Code zu schreiben oder Code-G
 
 - Erhöhte Typsicherheit:
 Generics ermöglichen es, Typen zur Kompilierzeit zu überprüfen, was die Wahrscheinlichkeit von Laufzeitfehlern durch Typkonvertierungen verringert und die Zuverlässigkeit und Wartbarkeit des Codes verbessert.
-Verbesserte Bibliotheken:
 
--Einige Bibliotheken und Projekte haben von der Einführung von Generics profitiert. Beispiel: 
+- Verbesserte Bibliotheken:
+Einige Bibliotheken und Projekte haben von der Einführung von Generics profitiert. Beispiel: 
 das Paket golang.org/x/exp/maps, das nützliche Funktionen für Map-Datenstrukturen bereitstellt.
 
--Leistungsverbesserungen:
-Ein Nutzer hebt hervor, dass Reflection langsamer ist als Generics, was ein wichtiger Grund für die Verwendung von Generics sein kann, um die Performance zu verbessern.
+- Leistungsverbesserungen:
+Von Nutzern wird hervorgehoben, dass Reflection langsamer ist als Generics, was ein wichtiger Grund für die Verwendung von Generics sein kann, um die Performance zu verbessern.
 
 
 # Argumente gegen die Verwendung von Generics in Go 
@@ -932,9 +931,9 @@ Ein Nutzer hebt hervor, dass Reflection langsamer ist als Generics, was ein wich
 
 - Schwierigkeiten bei der Umsetzung: Einige Nutzer erwähnen, dass sie Schwierigkeiten haben, Generics in Go zu verstehen und korrekt zu implementieren, insbesondere im Vergleich zu anderen Sprachen wie Java.
 
-- Refactoring-Kosten: Ein Entwickler argumentiert, dass viele Open-Source-Projekte Generics nicht übernehmen, weil die Zeit und Ressourcen für das Refactoring begrenzt sind.
+- Refactoring-Kosten: Entwickler argumentieren, dass viele Open-Source-Projekte Generics nicht übernehmen, weil die Zeit und Ressourcen für das Refactoring begrenzt sind.
 
-- Leistungsbedenken: Ein Nutzer hebt hervor, dass Reflection langsamer ist als Generics, was ein wichtiger Grund für die Verwendung von Generics sein kann, um die Performance zu verbessern.
+- Leistungsbedenken: Die Einführung von Generics in Go 1.18 hat die Kompilierungszeiten selbst für Codebasen, die keine Generics verwenden, verlangsamt. Obwohl Go 1.20 diese Zeiten wieder auf das Niveau von Go 1.17 gebracht hat, bleibt die Frage, ob die initiale Einführung notwendig war.
 
 - Reduzierte Code-Lesbarkeit:
 Die Verwendung von Generics kann die Lesbarkeit des Codes verschlechtern. Die zusätzlichen Klammern und Typdeklarationen könnten den Code komplexer erscheinen lassen.
