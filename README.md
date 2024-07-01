@@ -586,6 +586,100 @@ Dazu gehören z.B. Aufrufe von Maps, Arrays oder Datentypen aus anderen Biblioth
 
 - Jede Verwendung von Generics oder Type Assertions wird detailliert mit Datei- und Zeilenangaben dokumentiert
 
+"Certain hits" beziehen sich auf die klar erkennbare Verwendung von Generics. Diese sind durch die explizite Definition und Verwendung von generischen Typen und Funktionen gekennzeichnet.
+
+Ein generischer Typparameter kommt beispielsweise vor in:
+Structs, Funktionen, Methoden:
+
+```go
+
+type Pair[T any] struct {
+    first, second T
+}
+
+func Print[T any](a T) {
+    fmt.Println(a)
+}
+
+
+func (p *Pair[T]) SetFirst(first T) {
+    p.first = first
+}
+```
+
+Dabei werden auch Typinstanziierungen betrachtet, wie beispielsweise:
+
+```go
+pairInt := Pair[int]{first: 1, second: 2}
+```
+
+"Uncertain" bedeutet, dass die Nutzung von Generics nicht eindeutig ist oder nicht direkt identifiziert werden kann. Dies kann daran liegen, dass die intern verwendeten Typen oder Strukturen nicht ersichtlich sind oder weil es sich um generische Konstrukte aus Bibliotheken handelt, deren Implementierungsdetails verborgen bleiben.
+
+# Erklärung des Codes zur Identifikation von "uncertain hits":
+
+Bei der Analyse werden Namen, die als mögliche type bounds oder Instanzen für Generics fungieren könnten, mit allen im Projekt definierten und Standard-Struct-Namen verglichen. Namen, die diesen entsprechen, gelten als "certain hits" (z.B. "any", "Coordinate" bei entsprechenden Structs). Alle anderen werden als "uncertain" ausgegeben, was oft auf Aufrufe von Maps, Arrays usw. hinweist.
+
+Dies wird folgendermaßen im code des Tools "goAnalyze" definiert(Zeile 491ff. in projectModel.go):
+
+
+- Überprüfung auf Generics:
+
+```go
+if p.UsesGenerics {
+    fmt.Printf("Used %d generics\n", p.NumOfGenericsUsed)
+    fmt.Printf("The following Generics were used:\n")
+```
+
+Es wird überprüft, ob Generics im Projekt verwendet werden (p.UsesGenerics).
+Wenn ja, wird die Anzahl der verwendeten Generics (p.NumOfGenericsUsed) ausgegeben.
+
+- Initialisierung von Maps zur Kategorisierung:
+
+```go
+mostCertainList := make(map[string]int)
+uncertainList := make(map[string]int)
+```
+
+Zwei Maps werden erstellt: mostCertainList für sichere Treffer (certain hits) und uncertainList für unsichere Treffer (uncertain hits).
+Initialisierung eines Zählers für sichere Generics:
+
+```go
+countCertainGenerics := 0
+```
+
+Durchlaufen der Generics-Namen und -Anzahlen:
+
+```go
+for name, count := range p.GenericsCountNames {
+    namePartList := strings.Split(name, ".")
+
+if p.TypeNames.Has(namePartList[len(namePartList)-1]) {
+    mostCertainList[name] = count
+    countCertainGenerics += count
+} else {
+    uncertainList[name] = count
+}
+```
+
+Der Name des Generics wird in seine Bestandteile (durch . getrennt) aufgeteilt.
+Wenn der letzte Teil des Namens in der Liste der bekannten Typnamen (p.TypeNames) enthalten ist, wird er als sicherer Treffer (certain hit) gewertet und in mostCertainList aufgenommen.
+Andernfalls wird er als unsicherer Treffer (uncertain hit) gewertet und in uncertainList aufgenommen.
+
+- Beispiel aus: (../analyzeTarget/gin-gonic/gin/context.go: [761] )
+
+```go
+func (c *Context) ShouldBindUri(obj any) error {
+	m := make(map[string][]string, len(c.Params))
+	for _, v := range c.Params {
+		m[v.Key] = []string{v.Value} //diese zeile wird als uncertain hit eingestuft
+	}
+	return binding.Uri.BindUri(m, obj)
+}
+```
+
+Hier wird die Zeile m[v.Key] = []string{v.Value} als ein "uncertain hit" eingestuft. Dies liegt daran, dass sie syntaktisch wie die Verwendung von Generics aussieht, aber keine echten Generics verwendet.
+
+- Map-Aufrufe: Der Code verwendet die Map m und weist Werte zu. Maps und Arrays können generische Strukturen ähneln, da sie Typparameter enthalten (z.B. map[string][]string).
 
 ## Die Analyse ergab folgende Ergebnisse für das Projekt gin-gonic/gin:
 
