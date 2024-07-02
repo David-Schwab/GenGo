@@ -586,100 +586,110 @@ Dazu gehören z.B. Aufrufe von Maps, Arrays oder Datentypen aus anderen Biblioth
 
 - Jede Verwendung von Generics oder Type Assertions wird detailliert mit Datei- und Zeilenangaben dokumentiert
 
-"Certain hits" beziehen sich auf die klar erkennbare Verwendung von Generics. Diese sind durch die explizite Definition und Verwendung von generischen Typen und Funktionen gekennzeichnet.
+## Verfahren zur Identifikation von Generics in Go
 
-Ein generischer Typparameter kommt beispielsweise vor in:
-Structs, Funktionen, Methoden:
+1. Syntax-Analyse mit ANTLR4
+Das zu analysierende Projekt wird einer Syntax-Analyse mithilfe von ANTLR4 unterzogen. ANTLR identifiziert dabei alle potenziellen Generics im Projekt. Es werden alle möglichen Namen für Typebounds oder Typinstanziierungen durch ANTLR betrachtet, und solche Namen als potenzielle Generics identifiziert, die nach ANTLR bei der Verwendung von Generics zum Einsatz kommen. Dabei handelt es sich bei den "Namen" genauer um die Strings bzw. Typen innerhalb der eckigen Klammern, z.B. bei der Deklaration von Funktionen:
+
+- Name für Typebound: ("any")
 
 ```go
-
-type Pair[T any] struct {
-    first, second T
-}
-
-func Print[T any](a T) {
-    fmt.Println(a)
-}
-
-
-func (p *Pair[T]) SetFirst(first T) {
-    p.first = first
-}
+func a[T any]() { ... }
 ```
 
-Dabei werden auch Typinstanziierungen betrachtet, wie beispielsweise:
+Selbiges gilt auch für Structs oder beim Aufrufen einer generischen Methode:
+
+- Name für Typinstanziierung: ("boolean")
 
 ```go
-pairInt := Pair[int]{first: 1, second: 2}
+showTwice2[boolean](b, b)
 ```
 
-"Uncertain" bedeutet, dass die Nutzung von Generics nicht eindeutig ist oder nicht direkt identifiziert werden kann. Dies kann daran liegen, dass die intern verwendeten Typen oder Strukturen nicht ersichtlich sind oder weil es sich um generische Konstrukte aus Bibliotheken handelt, deren Implementierungsdetails verborgen bleiben.
+2. Aufbau einer Typenliste
 
-# Erklärung des Codes zur Identifikation von "uncertain hits":
+Es wird eine Liste aufgebaut diese enthält:
+- Projektdefinierte Typen: Alle definierten Typen des betrachteten Projekts.
+- Standard-Basistypen: grundlegenden Datentypen wie z.B. (float, int, string, bool, any)
 
-Bei der Analyse werden Namen, die als mögliche type bounds oder Instanzen für Generics fungieren könnten, mit allen im Projekt definierten und Standard-Struct-Namen verglichen. Namen, die diesen entsprechen, gelten als "certain hits" (z.B. "any", "Coordinate" bei entsprechenden Structs). Alle anderen werden als "uncertain" ausgegeben, was oft auf Aufrufe von Maps, Arrays usw. hinweist.
+3. Kategorisierung der Typen
 
-Dies wird folgendermaßen im code des Tools "goAnalyze" definiert(Zeile 491ff. in projectModel.go):
+- Sicher erkannte Generics (Most Certain Hits):
+Wenn der durch ANTLR als potenzieller Generic identifizierte Typname in der aufgebauten Liste enthalten ist, wird er als generischer Typ eingestuft (z.B. any).
 
-
-- Überprüfung auf Generics:
-
-```go
-if p.UsesGenerics {
-    fmt.Printf("Used %d generics\n", p.NumOfGenericsUsed)
-    fmt.Printf("The following Generics were used:\n")
-```
-
-Es wird überprüft, ob Generics im Projekt verwendet werden (p.UsesGenerics).
-Wenn ja, wird die Anzahl der verwendeten Generics (p.NumOfGenericsUsed) ausgegeben.
-
-- Initialisierung von Maps zur Kategorisierung:
+- Beispiel 1: Most Certain Hit
 
 ```go
-mostCertainList := make(map[string]int)
-uncertainList := make(map[string]int)
-```
-
-Zwei Maps werden erstellt: mostCertainList für sichere Treffer (certain hits) und uncertainList für unsichere Treffer (uncertain hits).
-Initialisierung eines Zählers für sichere Generics:
-
-```go
-countCertainGenerics := 0
-```
-
-Durchlaufen der Generics-Namen und -Anzahlen:
-
-```go
-for name, count := range p.GenericsCountNames {
-    namePartList := strings.Split(name, ".")
-
-if p.TypeNames.Has(namePartList[len(namePartList)-1]) {
-    mostCertainList[name] = count
-    countCertainGenerics += count
-} else {
-    uncertainList[name] = count
+func readGGUF[T any](llm *gguf, r io.Reader) (T, error) {
+    var t T
+    err := binary.Read(r, llm.ByteOrder, &t)
+    return t, err
 }
 ```
 
-Der Name des Generics wird in seine Bestandteile (durch . getrennt) aufgeteilt.
-Wenn der letzte Teil des Namens in der Liste der bekannten Typnamen (p.TypeNames) enthalten ist, wird er als sicherer Treffer (certain hit) gewertet und in mostCertainList aufgenommen.
-Andernfalls wird er als unsicherer Treffer (uncertain hit) gewertet und in uncertainList aufgenommen.
+Dieses Beispiel definiert einen "most certain hit". Die Funktions Deklaration wird durch ANTLR als potenzieller generic identifiziert und weil der Name des TypeBounds "any" in der Liste der bekannten Typen enthalten ist, wird dies als "most certain hit" eingestuft.
 
-- Beispiel aus: (../analyzeTarget/gin-gonic/gin/context.go: [761] )
+- Beispiel 2: Projektspezifische Typen
+
+Angenommen, im Projekt wurde ein Typ Show definiert:
+
+```go
+type Show interface {
+    show() string
+}
+
+
+func showTwice2[T Show](x T, y T) {
+    fmt.Printf("\n %s", x.show()+y.show())
+}
+```
+Hier wird der Type Show als generischer Typ erkannt, da Show im Projekt definiert ist und definierte Typen in die Liste zum vergleichen aufgenommen wird. ANTLR wird diese Funktions Deklaration als potenziellen generic identifizieren und nach dem Abgleich mit der aufgebauten Liste kann es als most certain hit eingestuft werden.
+
+- Unsicher erkannte Generics (Uncertain Hits):
+Wenn der Typname nicht in den bekannten Listen enthalten ist, bleibt die Zuordnung unsicher. Dies gilt insbesondere für mögliche Map-Zugriffe (z.B. map[x][y]), bei denen x und y oft keine generischen Typen, sondern Schlüssel- und Indexwerte sind.
+
+- Beispiel 1:
 
 ```go
 func (c *Context) ShouldBindUri(obj any) error {
-	m := make(map[string][]string, len(c.Params))
-	for _, v := range c.Params {
-		m[v.Key] = []string{v.Value} //diese zeile wird als uncertain hit eingestuft
-	}
-	return binding.Uri.BindUri(m, obj)
+    m := make(map[string][]string, len(c.Params))
+    for _, v := range c.Params {
+        m[v.Key] = []string{v.Value} //diese Zeile wird als uncertain hit eingestuft laut Ausgabe
+    }
+    return binding.Uri.BindUri(m, obj)
 }
 ```
+In diesem Beispiel wird v.Key von ANTLR als potenzieller Generic identifiziert, aber da Key nicht in der Liste der bekannten Typen enthalten ist, bleibt die Zuordnung unsicher.
 
-Hier wird die Zeile m[v.Key] = []string{v.Value} als ein "uncertain hit" eingestuft. Dies liegt daran, dass sie syntaktisch wie die Verwendung von Generics aussieht, aber keine echten Generics verwendet.
+- Beispiel 2:
 
-- Map-Aufrufe: Der Code verwendet die Map m und weist Werte zu. Maps und Arrays können generische Strukturen ähneln, da sie Typparameter enthalten (z.B. map[string][]string).
+```go
+m := map[string]map[int]string{
+    "outer": {1: "value1", 2: "value2"},
+}
+value := m["outer"][1]
+```
+
+Hier könnten outer und 1 als potenzielle generische Typen erkannt werden, sind jedoch in diesem Kontext Zugriffe auf eine Map. Da diese Namen "outer" und "1" nicht in den bekannten Typenlisten enthalten sind, bleibt die Zuordnung unsicher.
+
+## Begründung für die Sicherheit bei der Identifikation von Generics
+Die Sicherheit, dass ein Typname in eckigen Klammern wahrscheinlich ein Generic ist, basiert auf mehreren Faktoren:
+
+- Keywords und Typnamen als Variablennamen:
+Generische Typen tauchen typischerweise in Deklarationen und Instanziierungen auf, die innerhalb von eckigen Klammern notiert sind. In Go können bestimmte Schlüsselwörter und Typnamen nicht als Variablennamen verwendet werden. Dies gilt sowohl für Sprachschlüsselwörter wie if oder for als auch für Basistypen wie int, float, string und bool. Diese Einschränkungen helfen dabei, generische Typen sicherer zu identifizieren, da diese Namen in eckigen Klammern sehr wahrscheinlich keine Variablennamen sind.
+
+- Eindeutigkeit der Typen:
+Basistypen und projektspezifische Typen sind eindeutig und werden in der Liste der bekannten Typen geführt. Wenn ein Typname in den eckigen Klammern mit einem dieser bekannten Typen übereinstimmt, ist es sehr wahrscheinlich, dass es sich um einen Generic handelt.
+
+4. Manuelle Überprüfung von Hits
+Sowohl "most certain hits" als auch "uncertain hits" sollten manuell überprüft werden:
+
+- Most Certain Hits:
+Es könnten false positives enthalten sein, daher ist eine Überprüfung notwendig.
+
+- Uncertain Hits:
+Es könnten false negatives enthalten sein. Diese Hits können durchaus sinnvolle und relevante Verwendungen von Generics darstellen. Es macht Sinn, diese zu überprüfen, um festzustellen, ob sie plausible Typebounds oder generische Instanziierungen sein könnten, insbesondere wenn sie aus anderen Bibliotheken stammen.
+
+- Nach manueller Überprüfung und im Rahmen dieser Fallstudie wird davon ausgegangen, dass das Tool immer Recht hat und most certain hits eindeutige Treffer für Generics darstellen, und uncertain hits keine Treffer, also keine Generics sind. Dies dient dazu, um eine bessere Aussage über die allgemeine Verwendung von Generics in Go treffen zu können.
 
 ## Die Analyse ergab folgende Ergebnisse für das Projekt gin-gonic/gin:
 
