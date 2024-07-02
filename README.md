@@ -589,6 +589,7 @@ Dazu gehören z.B. Aufrufe von Maps, Arrays oder Datentypen aus anderen Biblioth
 ## Verfahren zur Identifikation von Generics in Go
 
 1. Syntax-Analyse mit ANTLR4
+
 Das zu analysierende Projekt wird einer Syntax-Analyse mithilfe von ANTLR4 unterzogen. ANTLR identifiziert dabei alle potenziellen Generics im Projekt. Es werden alle möglichen Namen für Typebounds oder Typinstanziierungen durch ANTLR betrachtet, und solche Namen als potenzielle Generics identifiziert, die nach ANTLR bei der Verwendung von Generics zum Einsatz kommen. Dabei handelt es sich bei den "Namen" genauer um die Strings bzw. Typen innerhalb der eckigen Klammern, z.B. bei der Deklaration von Funktionen:
 
 - Name für Typebound: ("any")
@@ -626,7 +627,7 @@ func readGGUF[T any](llm *gguf, r io.Reader) (T, error) {
 }
 ```
 
-Dieses Beispiel definiert einen "most certain hit". Die Funktions Deklaration wird durch ANTLR als potenzieller generic identifiziert und weil der Name des TypeBounds "any" in der Liste der bekannten Typen enthalten ist, wird dies als "most certain hit" eingestuft.
+Dieses Beispiel definiert einen "most certain hit". Die Funktions Deklaration wird durch ANTLR als potenzieller Generic identifiziert und weil der Name des TypeBounds "any" in der Liste der bekannten Typen enthalten ist, wird dies als "most certain hit" eingestuft.
 
 - Beispiel 2: Projektspezifische Typen
 
@@ -642,10 +643,10 @@ func showTwice2[T Show](x T, y T) {
     fmt.Printf("\n %s", x.show()+y.show())
 }
 ```
-Hier wird der Type Show als generischer Typ erkannt, da Show im Projekt definiert ist und definierte Typen in die Liste zum vergleichen aufgenommen wird. ANTLR wird diese Funktions Deklaration als potenziellen generic identifizieren und nach dem Abgleich mit der aufgebauten Liste kann es als most certain hit eingestuft werden.
+ANTLR identifiziert Show als potenziellen Generic, welcher nach dem Abgleich mit der aufgebauten Liste schließlich auch als most certain hit eingestuft wird, da Show im Projekt definiert ist und definierte Typen in der Liste enthalten sind.
 
 - Unsicher erkannte Generics (Uncertain Hits):
-Wenn der Typname nicht in den bekannten Listen enthalten ist, bleibt die Zuordnung unsicher. Dies gilt insbesondere für mögliche Map-Zugriffe (z.B. map[x][y]), bei denen x und y oft keine generischen Typen, sondern Schlüssel- und Indexwerte sind.
+Wenn der Typname nicht in der Liste enthalten ist, bleibt die Zuordnung unsicher. Dies gilt insbesondere für mögliche Map-Zugriffe (z.B. map[x][y]), bei denen x und y oft keine generischen Typen, sondern Schlüssel- und Indexwerte sind.
 
 - Beispiel 1:
 
@@ -653,7 +654,7 @@ Wenn der Typname nicht in den bekannten Listen enthalten ist, bleibt die Zuordnu
 func (c *Context) ShouldBindUri(obj any) error {
     m := make(map[string][]string, len(c.Params))
     for _, v := range c.Params {
-        m[v.Key] = []string{v.Value} //diese Zeile wird als uncertain hit eingestuft laut Ausgabe
+        m[v.Key] = []string{v.Value} 
     }
     return binding.Uri.BindUri(m, obj)
 }
@@ -672,7 +673,7 @@ value := m["outer"][1]
 Hier könnten outer und 1 als potenzielle generische Typen erkannt werden, sind jedoch in diesem Kontext Zugriffe auf eine Map. Da diese Namen "outer" und "1" nicht in den bekannten Typenlisten enthalten sind, bleibt die Zuordnung unsicher.
 
 ## Begründung für die Sicherheit bei der Identifikation von Generics
-Die Sicherheit, dass ein Typname in eckigen Klammern wahrscheinlich ein Generic ist, basiert auf mehreren Faktoren:
+Die Sicherheit, dass ein Typname in eckigen Klammern wahrscheinlich bzw "most certain" ein Generic ist, basiert auf mehreren Faktoren:
 
 - Keywords und Typnamen als Variablennamen:
 Generische Typen tauchen typischerweise in Deklarationen und Instanziierungen auf, die innerhalb von eckigen Klammern notiert sind. In Go können bestimmte Schlüsselwörter und Typnamen nicht als Variablennamen verwendet werden. Dies gilt sowohl für Sprachschlüsselwörter wie if oder for als auch für Basistypen wie int, float, string und bool. Diese Einschränkungen helfen dabei, generische Typen sicherer zu identifizieren, da diese Namen in eckigen Klammern sehr wahrscheinlich keine Variablennamen sind.
