@@ -632,11 +632,12 @@ func main() {
 }
 ```
 
-Beide Code-Beispiele resultieren in den selben Tokens:
+- Beide Code-Beispiele resultieren in den selben Tokens:
+
+![AST](images/img.png)
 
 
-
-Es wird folgendermaßen vorgegangen, um dann zu entscheiden, ob es sich bei "A" und "B" jeweils um "most certain" also wahrscheinliche und "uncertain", also unsichere hits für Generics handelt:
+Es wird folgendermaßen vorgegangen, um dann zu entscheiden, ob es sich bei "A" und "B" jeweils um "most certain", also wahrscheinliche und "uncertain", also unsichere hits für Generics handelt:
 
 
 1. Aufbau einer Typenliste
@@ -708,24 +709,30 @@ value := m["outer"][1]
 Hier könnten outer und 1 als potenzielle generische Typen erkannt werden, sind jedoch in diesem Kontext Zugriffe auf eine Map. Da diese Namen "outer" und "1" nicht in der Liste mit bekannten Typen enthalten sind, bleibt die Zuordnung unsicher("uncertain").
 
 ## Begründung für die Sicherheit bei der Identifikation von Generics
+
 Die Sicherheit, dass ein Typname in eckigen Klammern wahrscheinlich bzw. "most certain" ein Generic ist, basiert auf mehreren Faktoren:
 
 - Keywords und Typnamen als Variablennamen:
+
 Generische Typen tauchen typischerweise in Deklarationen und Instanziierungen auf, die innerhalb von eckigen Klammern notiert sind. In Go können bestimmte Schlüsselwörter und Typnamen nicht als Variablennamen verwendet werden. Dies gilt sowohl für Sprachschlüsselwörter wie if oder for als auch für Basistypen wie int, float, string und bool. Diese Einschränkungen helfen dabei, generische Typen sicherer zu identifizieren, da diese Namen in eckigen Klammern sehr wahrscheinlich keine Variablennamen sind.
 
 - Eindeutigkeit der Typen:
+
 Basistypen und projektspezifische Typen sind eindeutig und werden in der Liste der bekannten Typen geführt. Wenn ein Typname in den eckigen Klammern mit einem dieser bekannten Typen übereinstimmt, ist es sehr wahrscheinlich, dass es sich um einen Generic handelt.
 
 4. Manuelle Überprüfung von Hits
+
 Sowohl "most certain hits" als auch "uncertain hits" sollten manuell überprüft werden, deshalb werden sie entsprechend auch als: "es sind wahrscheinlich Generics" oder "es sind unwahrscheinlich Generics" definiert:
 
 - Most Certain Hits:
+
 Es könnten false positives enthalten sein, daher ist eine Überprüfung notwendig.
 
 - Uncertain Hits:
+
 Es könnten false negatives enthalten sein. Diese Hits können durchaus sinnvolle und relevante Verwendungen von Generics darstellen. Es macht Sinn, diese zu überprüfen, um festzustellen, ob sie plausible Typebounds oder generische Instanziierungen sein könnten, insbesondere wenn sie aus anderen Bibliotheken stammen.
 
-- Nach manueller Überprüfung und im Rahmen dieser Fallstudie wird davon ausgegangen, dass das Tool immer Recht hat und "most certain hits" eindeutige Treffer für Generics darstellen, und "uncertain hits" keine Treffer, also keine Generics sind. Dies dient dazu, um eine bessere Aussage über die allgemeine Verwendung von Generics in Go treffen zu können.
+Nach manueller Überprüfung und im Rahmen dieser Fallstudie wird davon ausgegangen, dass das Tool immer Recht hat und "most certain hits" eindeutige Treffer für Generics darstellen, und "uncertain hits" keine Treffer, also keine Generics sind. Dies dient dazu, um eine bessere Aussage über die allgemeine Verwendung von Generics in Go treffen zu können.
 
 ## Die Analyse ergab folgende Ergebnisse für das Projekt gin-gonic/gin:
 
