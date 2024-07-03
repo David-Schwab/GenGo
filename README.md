@@ -642,7 +642,7 @@ Es wird folgendermaßen vorgegangen, um dann zu entscheiden, ob es sich bei "A" 
 
 1. Aufbau einer Typenliste
 
-Das Tool baut eine Liste aufm, welche enthält:
+Das Tool baut eine Liste auf, welche folgendes enthält:
 
 - Projektdefinierte Typen: Alle definierten Typen des betrachteten Projekts.
 - Standard-Basistypen: grundlegenden Datentypen wie z.B. (float, int, string, bool)
