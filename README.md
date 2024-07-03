@@ -586,48 +586,83 @@ Dazu gehören z.B. Aufrufe von Maps, Arrays oder Datentypen aus anderen Biblioth
 
 - Jede Verwendung von Generics oder Type Assertions wird detailliert mit Datei- und Zeilenangaben dokumentiert
 
-## Verfahren zur Identifikation von Generics in Go
+# Verfahren zur Identifikation von Generics in Go
 
-1. Syntax-Analyse mit ANTLR4
+## Syntax-Analyse mit ANTLR4
 
-Das zu analysierende Projekt wird einer Syntax-Analyse mithilfe von ANTLR4 unterzogen. ANTLR identifiziert dabei alle potenziellen Generics im Projekt. Es werden alle möglichen Namen für Typebounds oder Typinstanziierungen durch ANTLR betrachtet, und solche Namen als potenzielle Generics identifiziert, die nach ANTLR bei der Verwendung von Generics zum Einsatz kommen. Dabei handelt es sich bei den "Namen" genauer um die Strings bzw. Typen innerhalb der eckigen Klammern, z.B. bei der Deklaration von Funktionen:
+Das zu analysierende Projekt wird einer Syntax-Analyse mithilfe von ANTLR4 unterzogen. ANTLR parst den Code gemäß einer definierten Grammatik in einen Abstract Syntax Tree (AST), der aus Tokens besteht. Diese Tokens repräsentieren bestimmte Elemente im Code. ANTLR selbst macht dabei keine finale Klassifizierung, sondern liefert die Vorverarbeitung. Das Tool, das darauf aufbaut, arbeitet dann mit diesen Tokens, insbesondere mit den Identifiern bzw. Typen innerhalb von eckigen Klammern, die hier Namen für beispielsweise Typepounds oder Typinstanziierungen im Zusammenhang mit Generics sein könnten. Daraus werden dann potenzielle Generics identifiziert.
 
-- Name für Typebound: ("any")
+Generics können dabei an unterschiedlichen Stellen verwendet werden:
+
+- Deklaration von Funktionen:
 
 ```go
-func a[T any]() { ... }
+func a[T any]() { ... } //Der Name "any" als Typebound
 ```
 
 Selbiges gilt auch für Structs oder beim Aufrufen einer generischen Methode:
 
-- Name für Typinstanziierung: ("boolean")
-
 ```go
-showTwice2[boolean](b, b)
+showTwice2[boolean](b, b)//Der Name "boolean" als Typinstanziierung für showTwice2
 ```
 
-2. Aufbau einer Typenliste
+Ein besonderes Problem bei der Identifikation von Generics ist die Unterscheidung zwischen Typen für Generics und Schlüsseln für Maps. Betrachten wir folgende Code-Beispiele:
 
-Es wird eine Liste aufgebaut diese enthält:
-- Projektdefinierte Typen: Alle definierten Typen des betrachteten Projekts.
-- Standard-Basistypen: grundlegenden Datentypen wie z.B. (float, int, string, bool, any)
+- Code A:
 
-3. Kategorisierung der Typen
-
-- Sicher erkannte Generics (Most Certain Hits):
-Wenn der durch ANTLR als potenzieller Generic identifizierte Typname in der aufgebauten Liste enthalten ist, wird er als generischer Typ eingestuft (z.B. any).
-
-- Beispiel 1: Most Certain Hit
 
 ```go
-func readGGUF[T any](llm *gguf, r io.Reader) (T, error) {
-    var t T
-    err := binary.Read(r, llm.ByteOrder, &t)
-    return t, err
+func main() {
+  c := make(map[int]func())
+  x := 0
+  c[x]() //A
 }
 ```
 
-Dieses Beispiel definiert einen "most certain hit". Die Funktions Deklaration wird durch ANTLR als potenzieller Generic identifiziert und weil der Name des TypeBounds "any" in der Liste der bekannten Typen enthalten ist, wird dies als "most certain hit" eingestuft.
+- Code B:
+
+
+```go
+func c[T any](){
+
+}
+
+func main() {
+  c[int]() //B
+}
+```
+
+Beide Code-Beispiele resultieren in den selben Tokens:
+
+
+
+Es wird folgendermaßen vorgegangen, um dann zu entscheiden, ob es sich bei "A" und "B" jeweils um "most certain" also wahrscheinliche und "uncertain", also unsichere hits für Generics handelt:
+
+
+1. Aufbau einer Typenliste
+
+Das Tool baut eine Liste aufm, welche enthält:
+
+- Projektdefinierte Typen: Alle definierten Typen des betrachteten Projekts.
+- Standard-Basistypen: grundlegenden Datentypen wie z.B. (float, int, string, bool)
+
+2. Kategorisierung der Typen
+
+- Sicher erkannte Generics (Most Certain Hits):
+
+Wenn der Typname oder Identifier innerhalb der eckigen Klammern bei "//B" in der aufgebauten Liste enthalten ist, wird er als "most certain" eingestuft. Da "int" in der Liste der Basistypen ist, trifft das zu.
+
+- Beispiel 1: 
+
+```go
+func c[T any](){
+
+}
+
+func main() {
+  c[int]() //B
+}
+```
 
 - Beispiel 2: Projektspezifische Typen
 
@@ -643,7 +678,9 @@ func showTwice2[T Show](x T, y T) {
     fmt.Printf("\n %s", x.show()+y.show())
 }
 ```
-ANTLR identifiziert Show als potenziellen Generic, welcher nach dem Abgleich mit der aufgebauten Liste schließlich auch als most certain hit eingestuft wird, da Show im Projekt definiert ist und definierte Typen in der Liste enthalten sind.
+Show wird als potenzieller Generic identifiziert, welcher nach dem Abgleich mit der aufgebauten Liste als most certain hit eingestuft wird, da Show im Projekt definiert ist und definierte Typen in der Liste enthalten sind.
+
+Im Grunde werden alle anderen Fälle als uncertain hits eingestuft.
 
 - Unsicher erkannte Generics (Uncertain Hits):
 Wenn der Typname nicht in der Liste enthalten ist, bleibt die Zuordnung unsicher. Dies gilt insbesondere für mögliche Map-Zugriffe (z.B. map[x][y]), bei denen x und y oft keine generischen Typen, sondern Schlüssel- und Indexwerte sind.
@@ -651,15 +688,13 @@ Wenn der Typname nicht in der Liste enthalten ist, bleibt die Zuordnung unsicher
 - Beispiel 1:
 
 ```go
-func (c *Context) ShouldBindUri(obj any) error {
-    m := make(map[string][]string, len(c.Params))
-    for _, v := range c.Params {
-        m[v.Key] = []string{v.Value} 
-    }
-    return binding.Uri.BindUri(m, obj)
+func main() {
+  c := make(map[int]func())
+  x := 0
+  c[x]() //A
 }
 ```
-In diesem Beispiel wird v.Key von ANTLR als potenzieller Generic identifiziert, aber da Key nicht in der Liste der bekannten Typen enthalten ist, bleibt die Zuordnung unsicher.
+In diesem Beispiel könnte es sich bei "//A"" um einen Generic handeln, da aber "x" nicht in der Liste der bekannten Typen enthalten ist, und auch nicht als Typ vorher definiert wurde, bleibt die Zuordnung unsicher. Offensichtlich handelt es sich hier auch nicht um einen Generic sondern um einen Map Aufruf.
 
 - Beispiel 2:
 
@@ -670,10 +705,10 @@ m := map[string]map[int]string{
 value := m["outer"][1]
 ```
 
-Hier könnten outer und 1 als potenzielle generische Typen erkannt werden, sind jedoch in diesem Kontext Zugriffe auf eine Map. Da diese Namen "outer" und "1" nicht in den bekannten Typenlisten enthalten sind, bleibt die Zuordnung unsicher.
+Hier könnten outer und 1 als potenzielle generische Typen erkannt werden, sind jedoch in diesem Kontext Zugriffe auf eine Map. Da diese Namen "outer" und "1" nicht in der Liste mit bekannten Typen enthalten sind, bleibt die Zuordnung unsicher("uncertain").
 
 ## Begründung für die Sicherheit bei der Identifikation von Generics
-Die Sicherheit, dass ein Typname in eckigen Klammern wahrscheinlich bzw "most certain" ein Generic ist, basiert auf mehreren Faktoren:
+Die Sicherheit, dass ein Typname in eckigen Klammern wahrscheinlich bzw. "most certain" ein Generic ist, basiert auf mehreren Faktoren:
 
 - Keywords und Typnamen als Variablennamen:
 Generische Typen tauchen typischerweise in Deklarationen und Instanziierungen auf, die innerhalb von eckigen Klammern notiert sind. In Go können bestimmte Schlüsselwörter und Typnamen nicht als Variablennamen verwendet werden. Dies gilt sowohl für Sprachschlüsselwörter wie if oder for als auch für Basistypen wie int, float, string und bool. Diese Einschränkungen helfen dabei, generische Typen sicherer zu identifizieren, da diese Namen in eckigen Klammern sehr wahrscheinlich keine Variablennamen sind.
@@ -682,7 +717,7 @@ Generische Typen tauchen typischerweise in Deklarationen und Instanziierungen au
 Basistypen und projektspezifische Typen sind eindeutig und werden in der Liste der bekannten Typen geführt. Wenn ein Typname in den eckigen Klammern mit einem dieser bekannten Typen übereinstimmt, ist es sehr wahrscheinlich, dass es sich um einen Generic handelt.
 
 4. Manuelle Überprüfung von Hits
-Sowohl "most certain hits" als auch "uncertain hits" sollten manuell überprüft werden:
+Sowohl "most certain hits" als auch "uncertain hits" sollten manuell überprüft werden, deshalb werden sie entsprechend auch als: "es sind wahrscheinlich Generics" oder "es sind unwahrscheinlich Generics" definiert:
 
 - Most Certain Hits:
 Es könnten false positives enthalten sein, daher ist eine Überprüfung notwendig.
@@ -690,7 +725,7 @@ Es könnten false positives enthalten sein, daher ist eine Überprüfung notwend
 - Uncertain Hits:
 Es könnten false negatives enthalten sein. Diese Hits können durchaus sinnvolle und relevante Verwendungen von Generics darstellen. Es macht Sinn, diese zu überprüfen, um festzustellen, ob sie plausible Typebounds oder generische Instanziierungen sein könnten, insbesondere wenn sie aus anderen Bibliotheken stammen.
 
-- Nach manueller Überprüfung und im Rahmen dieser Fallstudie wird davon ausgegangen, dass das Tool immer Recht hat und most certain hits eindeutige Treffer für Generics darstellen, und uncertain hits keine Treffer, also keine Generics sind. Dies dient dazu, um eine bessere Aussage über die allgemeine Verwendung von Generics in Go treffen zu können.
+- Nach manueller Überprüfung und im Rahmen dieser Fallstudie wird davon ausgegangen, dass das Tool immer Recht hat und "most certain hits" eindeutige Treffer für Generics darstellen, und "uncertain hits" keine Treffer, also keine Generics sind. Dies dient dazu, um eine bessere Aussage über die allgemeine Verwendung von Generics in Go treffen zu können.
 
 ## Die Analyse ergab folgende Ergebnisse für das Projekt gin-gonic/gin:
 
